@@ -339,6 +339,27 @@ class LogueSDKV2Generator(Generator, ABC):
                 context['param'][p_key]['max'] = p_attr['max']
                 context['param'][p_key]['min'] = p_attr['min']
                 context['param'][p_key]['default'] = p_attr['default']
+                if 'type' in p_attr:
+                    type = p_attr['type'].lower()
+                    if type == 'percent':
+                        format = 'k_unit_param_type_percent'
+                    elif type == 'db':
+                        format = 'k_unit_param_type_db'
+                    elif type == 'cents':
+                        format = 'k_unit_param_type_cents'
+                    elif type == 'hertz':
+                        format = 'k_unit_param_type_hertz'
+                    elif type == 'khertz':
+                        format = 'k_unit_param_type_khertz'
+                    elif type == 'ms':
+                        format = 'k_unit_param_type_msec'
+                    elif type == 'sec':
+                        format = 'k_unit_param_type_sec'
+                    else:
+                        format = 'k_unit_param_type_none'
+                else:
+                    format = 'k_unit_param_type_none'
+                context['param'][p_key]['format'] = format
                 context['param'][p_key].update(p_meta[p_name])
 
             # find the total number of parameters
