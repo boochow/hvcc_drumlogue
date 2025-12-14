@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <climits>
+#include <cstring>
+#include <cstdio>
 
 #include "unit_drumlogue.h"
 
@@ -360,16 +362,42 @@ __unit_callback void unit_resume() {
 __unit_callback void unit_suspend() {
 }
 
-static void format_number(char p_str[8], size_t len, float f) {
-    snprintf(p_str, len, "%.5f", f);
+{% if platform_name == "drumlogue" %}
+static void format_number(char *p_str, size_t len, float f, char *format) {
+    char formatstr[8];
 
+    std::snprintf(p_str, len, "%.3f", f);
     char *p = p_str + strlen(p_str) - 1;
     while (p > p_str && *p == '0') {
-        *p-- = '\0';
+        p--;
     }
     if (*p == '.') {
-        *p = '\0';
+        p--;
     }
+    std::strcpy(formatstr, (format ? format : ""));
+    std::strcpy(++p, formatstr);
+}
+
+static char *formatstr(uint8_t type) {
+    switch(type) {
+    case k_unit_param_type_percent:
+        return "%";
+    case k_unit_param_type_db:
+        return "db";
+    case k_unit_param_type_cents:
+        return "C";
+    case k_unit_param_type_hertz:
+        return "Hz";
+    case k_unit_param_type_khertz:
+        return "kHz";
+    case k_unit_param_type_msec:
+        return "ms";
+    case k_unit_param_type_sec:
+        return "s";
+    default:
+        break;
+    }
+    return nullptr;
 }
 
 __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value \
@@ -380,14 +408,19 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
     {% for i in range(1, 25) %}
     {% set id = "param_id" ~ i %}
     {% if param[id] is defined and param[id]['disp_frac'] > 0 %}
-    if (id == k_user_unit_{{id}}) {
+    case k_user_unit_{{id}}: {
+        char *s;
         fvalue = {{ param[id]['min' ]}} + value * ({{ param[id]['max'] }} - {{ param[id]['min'] }}) / {{ param[id]['disp_max'] }};
-        format_number(p_str, sizeof(p_str), fvalue);
+        s = formatstr({{ param[id]['format'] }});
+        format_number(p_str, sizeof(p_str), fvalue, s);
         return p_str;
+        break;
     }
     {% endif %}
     {% endfor %}
-    
+      default:
+          break;
+    }
     return nullptr;
 }
 

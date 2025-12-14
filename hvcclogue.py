@@ -334,13 +334,13 @@ class LogueSDKV2Generator(Generator, ABC):
                 p_name, p_rcv = unit_params[i]
                 p_attr = p_rcv.attributes
                 context['param'][p_key] = {'name' : p_name}
-                context['param'][p_key] = {'name' : p_name}
                 context['param'][p_key]['hash'] = p_rcv.hash
                 context['param'][p_key]['max'] = p_attr['max']
                 context['param'][p_key]['min'] = p_attr['min']
                 context['param'][p_key]['default'] = p_attr['default']
                 if 'type' in p_attr:
                     type = p_attr['type'].lower()
+                    # types below add a unit string after values
                     if type == 'percent':
                         format = 'k_unit_param_type_percent'
                     elif type == 'db':
@@ -355,6 +355,20 @@ class LogueSDKV2Generator(Generator, ABC):
                         format = 'k_unit_param_type_msec'
                     elif type == 'sec':
                         format = 'k_unit_param_type_sec'
+                    # types below add "+/-" before values
+                    elif type == 'semi':
+                        format = 'k_unit_param_type_semi'
+                    elif type == 'oct':
+                        format = 'k_unit_param_type_oct'
+                    # other types with their own formats
+                    elif type == 'drywet':
+                        format = 'k_unit_param_type_drywet'
+                    elif type == 'pan':
+                        format = 'k_unit_param_type_pan'
+                    elif type == 'spread':
+                        format = 'k_unit_param_type_spread'
+                    elif type == 'onoff':
+                        format = 'k_unit_param_type_onoff'
                     else:
                         format = 'k_unit_param_type_none'
                 else:
