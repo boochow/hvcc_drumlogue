@@ -376,8 +376,9 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
 
 __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
 {
+    {% if platform_name != "drumlogue" %}
     float knob_f = param_val_to_f32(value);
-    float f;
+    {% endif %}
 
     if (stop_unit_param) {
         return; // avoid all parameters to be zero'ed after unit_init()
