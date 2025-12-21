@@ -180,8 +180,14 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
     if (desc->samplerate != 48000)
       return k_unit_err_samplerate;
 
+    {% if unit_type == "synth" %}
+    // todo: include loguesdk_v1 osc here
+    if (desc->output_channels < {{num_output_channels}})
+      return k_unit_err_geometry;
+    {% else %}
     if (desc->input_channels != 2 || desc->output_channels < {{num_output_channels}})
       return k_unit_err_geometry;
+    {% endif %}
 
 #ifdef RENDER_HALF
     hvContext = hv_{{patch_name}}_new_with_options(24000, HV_MSGPOOLSIZE, HV_INPUTQSIZE, HV_OUTPUTQSIZE);
