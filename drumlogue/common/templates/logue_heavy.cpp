@@ -1,3 +1,4 @@
+{% if platform_name == "drumlogue" %}
 #include <errno.h>
 
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <cstdio>
 
 #include "unit_drumlogue.h"
+{% endif %}
 
 #include "Heavy_{{patch_name}}.h"
 
@@ -133,6 +135,8 @@ static bool touchin_dirty = false;
 static int32_t {{param[id]['name']}};
         {% elif param[id]['type'] == 'float' %}
 static float {{param[id]['name']}};
+        {% elif param[id]['type'] == '*pcm_index*' %}
+static int32_t {{param[id]['name']}};
         {% endif %}
     {% endif %}
 {% endfor %}
@@ -141,8 +145,50 @@ static bool param_dirty[{{num_param}}];
 {% endif %}
 {% for key, entry in table.items() %}
 static float * table_{{ key }};
-static unsigned int table_{{ key }}_len;
+{% if entry.type == "sample" %}
+{% set tablename = key[:-2] %}
+static uint8_t {{ tablename }}_bank;
+static bool {{ tablename }}_bank_dirty = false;
+static int32_t {{ tablename }}_index;
+static bool {{ tablename }}_index_dirty = false;
+{% endif %}
 {% endfor %}
+{% if unit_type == "synth" %}
+
+static void sendHook(HeavyContextInterface *c, const char *sendName, unsigned int sendHash, const HvMessage *m) {
+    switch (sendHash) {
+    {% for key, entry in table.items() %}
+    {% if entry.type == "sample" %}
+    {% set tablename = key[:-2] %}
+    {% set param = soundloader[key]['set_param'] %}
+    {% if out_param[param] is defined %}
+    case HV_{{ patch_name|upper }}_PARAM_OUT_{{ param |upper}}:
+        if (hv_msg_getNumElements(m) == 2) {
+            if (hv_msg_isSymbol(m, 0) && hv_msg_isFloat(m, 1)) {
+                const char *symbol = hv_msg_getSymbol(m, 0);
+                float value = hv_msg_getFloat(m, 1);
+                if (std::strcmp(symbol, "bank") == 0) {
+                    if ({{ tablename }}_bank != value) {
+                        {{ tablename }}_bank = value;
+                        {{ tablename }}_bank_dirty = true;
+                    }
+                } else if (std::strcmp(symbol, "index") == 0) {
+                    if ({{ tablename }}_index != value) {
+                        {{ tablename }}_index = value;
+                        {{ tablename }}_index_dirty = true;
+                    }
+                }
+            }
+        }
+        break;
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    default:
+        break;
+    }
+}
+{% endif %}
 
 __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
 {
@@ -157,16 +203,22 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
     {% for i in range(1, 25) %}
       {% set id = "param_id" ~ i %}
       {% if param[id] is defined %}
-        {% if param[id]['type'] == 'int' %}
-    {{param[id]['name']}} = {{param[id]['default'] | int}};
-    params[k_user_unit_{{id}}] = {{param[id]['name']}};
-        {% elif param[id]['type'] == 'float' %}
+        {% if param[id]['type'] == 'float' %}
     {{param[id]['name']}} = {{param[id]['default']}};
     params[k_user_unit_{{id}}] = {{ param[id]['disp_default'] }};
+        {% elif param[id]['type'] == 'int' %}
+    {{param[id]['name']}} = {{param[id]['default'] | int}};
+    params[k_user_unit_{{id}}] = {{param[id]['name']}};
+        {% elif param[id]['type'] == '*pcm_index*' %}
+    {{param[id]['name']}} = {{param[id]['default'] | int}};
+    params[k_user_unit_{{id}}] = {{param[id]['name']}};
         {% endif %}
     param_dirty[k_user_unit_{{id}}] = true;
       {% endif %}
     {% endfor %}
+    {% if unit_type == "synth" %}
+    params[k_user_unit_param_note] = 48;
+    {% endif %}
 
     if (!desc)
       return k_unit_err_undef;
@@ -196,7 +248,6 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
 #endif
     {% for key, entry in table.items() %}
     table_{{ key }} = hv_table_getBuffer(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
-    table_{{ key }}_len = hv_table_getLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
     {% endfor %}
 
     s_desc = *desc;
@@ -220,6 +271,7 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
 #endif
 
     stop_unit_param = false;
+
     {% if pitch is defined %} 
     const float pitch = osc_w0f_for_note(params[k_user_unit_param_pitch]>>3, (params[k_user_unit_param_pitch] & 0x7)<<5) * k_samplerate;
     hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_PITCH, pitch);
@@ -299,14 +351,13 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
     {% endfor %}
     {% for key, entry in table.items() %}
     {% if entry.type == "random" %}
-    table_{{ key }}_len = hv_table_getLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
-    for (int i = 0; i < table_{{ key }}_len ; i++) {
+    uint32_t table_len = hv_table_getLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
+    for (int i = 0; i < table_len ; i++) {
         float r = rand() / (float)RAND_MAX;
         table_{{ key }}[i] = 2. * r - 1.;
     }
     {% endif %}
     {% endfor %}
-
     {% if noteon_trig is defined %}
     if (noteon_trig_dirty) {
         if (hv_sendBangToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_NOTEON_TRIG)) {
@@ -335,7 +386,60 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
         }
     }
     {% endif %}
+    {% if unit_type == "synth" %}
+    {% for key, entry in table.items() %}
+    {% if entry.type == "sample" %}
+    {% set tablebank = key[:-2] ~ '_bank' %}
+    {% set tableindex = key[:-2] ~ '_index' %}
+    if ({{ tablebank }}_dirty || {{ tableindex }}_dirty) {
+        const sample_wrapper_t *sample;
+        int32_t index_max;
 
+        {{ tablebank }}_dirty = false;
+        {{ tableindex }}_dirty = false;
+        index_max = s_desc.get_num_samples_for_bank({{ tablebank }});
+        if ({{ tableindex }} >= index_max) {
+            {{ tableindex }} = index_max;
+        }
+        sample = s_desc.get_sample({{ tablebank }}, {{ tableindex }});
+        if ((sample != NULL) && (sample->frames > 0)) {
+            // add 2 more samples for [tabread4~] etc.
+            size_t newsize = sample->frames + 2;
+            uint32_t table_len = hv_table_getLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
+            if (table_len < newsize) {
+                hv_table_setLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}}, newsize);
+                table_{{ key }} = hv_table_getBuffer(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
+            }
+            if (sample->channels == 1) {
+                memcpy(table_{{ key }}, sample->sample_ptr, sizeof(float) * sample->frames);
+            } else if (sample->channels == 2) {
+                float *p = table_{{ key }};
+                const float *l = sample->sample_ptr;
+                const float *r = sample->sample_ptr + 1;
+                for(int i = 0; i < sample->frames; i++, p++, l+=2, r+=2) {
+                    float s = (*l + *r) * 0.5;
+                    s = s > 1.f ? 1.f : (s < -1.f ? -1.f : s);
+                    *p = s;
+                }
+            }
+            // repeat the first 2 samples at the end of the buffer
+            table_{{ key }}[newsize - 2] = table_{{ key }}[0];
+            table_{{ key }}[newsize - 1] = table_{{ key }}[1];
+            hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_{{ soundloader[key]['size_param']|upper}}, (float) sample->frames);
+        }
+    }
+
+    {% set selector = soundloader[key]['indexMenu_param'] %}
+    {% if selector['name'] is defined %}
+    if ({{ selector }}_dirty) {
+        if (hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_{{ selector|upper}}, (float) {{ selector }})) {
+            {{ selector }}_dirty = false;
+        }
+    }
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    {% endif %}
 #ifdef RENDER_HALF
     {% if class_name == 'Nts3_bgfx' %}
     const unit_runtime_genericfx_context_t *ctxt = static_cast<const unit_runtime_genericfx_context_t *>(s_desc.hooks.runtime_context);
@@ -388,15 +492,20 @@ __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
     {% for i in range(1, 25) %}
     {% set id = "param_id" ~ i %}
     {% if param[id] is defined %}
+    {% set param_type = param[id]['type'] %}
+    {% set param_name = param[id]['name'] %}
     case k_user_unit_{{id}}:
-        {% if param[id]['type'] == 'int' %}
-        {{param[id]['name']}} = value;
+        {% if param_type == 'int' %}
+        {{ param_name }} = value;
         param_dirty[k_user_unit_{{id}}] = true;
-        {% elif param[id]['type'] == 'float' %}
-//        {{param[id]['name']}} = 1. * value / {{ 2 ** param[id]['disp_frac'] }};
-//        {{param[id]['name']}} = 1. / {{ 10 * param[id]['disp_frac'] }} * value;
-        {{param[id]['name']}} = {{param[id]['min']}} + value * {{param[id]['max'] - param[id]['min'] / param[id]['disp_max'] }};
+        {% elif param_type == 'float' %}
+        {{ param_name }} = {{ param[id]['min'] }} + value * {{ (param[id]['max'] - param[id]['min']) / param[id]['disp_max'] }};
         param_dirty[{{i - 1}}] = true;
+        {% elif param_type == '*pcm_index*' %}
+        if ({{ param_name }} != value) {
+            {{ param_name }} = value;
+            param_dirty[k_user_unit_{{id}}] = true;
+        }
         {% endif %}
         break;
     {% endif %}
@@ -476,9 +585,11 @@ static char *formatstr(uint8_t type) {
 
 __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value \
 ) {
-    static char p_str[8];
+    static char p_str[16];
     float fvalue;
+    static char empty_str[10] = "000:---";
 
+    switch(id) {
     {% for i in range(1, 25) %}
     {% set id = "param_id" ~ i %}
     {% if param[id] is defined and param[id]['disp_frac'] > 0 %}
@@ -491,12 +602,49 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
         break;
     }
     {% endif %}
+    {% if param[id] is defined and param[id]['type'] == '*pcm_index*' %}
+    {% set tablename = param[id]['table'] %}
+    {% set tablebank = tablename[:-2] ~ '_bank' %}
+    case k_user_unit_{{id}}: {
+        const sample_wrapper_t *sample;
+        int32_t index_max;
+        static char samplename[12];
+        size_t namelen;
+
+        index_max = s_desc.get_num_samples_for_bank({{ tablebank }});
+        if (value < index_max) {
+            sample = s_desc.get_sample({{ tablebank }}, value);
+            namelen = strlen(sample->name);
+            if (namelen < 8) {
+                return sample->name;
+            } else {
+                strncpy(samplename, sample->name, 3);
+                samplename[3] = '.';
+                samplename[4] = '.';
+                strncpy(&samplename[5], (sample->name + namelen - 3), 4);
+                return samplename;
+            }
+        } else {
+            empty_str[0] = (char) 0x30 + ((value % 1000) / 100);
+            empty_str[1] = 0x30 + (value % 100) / 10;
+            empty_str[2] = 0x30 + value % 10;
+            return empty_str;
+        }
+        break;
+    }
+    {% endif %}
     {% endfor %}
-      default:
-          break;
+    default:
+        break;
     }
     return nullptr;
 }
+{% else %}
+__unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value\
+) {
+    return nullptr;
+}
+{% endif %}
 
 __unit_callback void unit_set_tempo(uint32_t tempo) {
     {% if sys_tempo is defined %}
@@ -507,7 +655,7 @@ __unit_callback void unit_set_tempo(uint32_t tempo) {
 
 {% if unit_type == "synth" %}
 __unit_callback void unit_note_on(uint8_t note, uint8_t velocity) {
-    {% if noteon_trig is defined %} 
+    {% if noteon_trig is defined %}
     noteon_trig_dirty = true;
     {% endif %}
     {% if unit_type == "synth" %}
@@ -516,7 +664,7 @@ __unit_callback void unit_note_on(uint8_t note, uint8_t velocity) {
 }
 
 __unit_callback void unit_note_off(uint8_t note) {
-    {% if noteoff_trig is defined %} 
+    {% if noteoff_trig is defined %}
     noteoff_trig_dirty = true;
     {% endif %}
     {% if unit_type == "synth" %}

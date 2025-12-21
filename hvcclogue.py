@@ -46,6 +46,7 @@ class LogueSDKV2Generator(Generator, ABC):
     PLATFORM_NAME: str = "drumlogue"
     FIXED_PARAMS: Tuple[str, ...] = ()
     BUILTIN_PARAMS: Tuple[str, ...] = ()
+    CONDITIONAL_PARAMS: Tuple[str, ...] = ()
     UNIT_NUM_INPUT: int = 2
     UNIT_NUM_OUTPUT: int = -1
     MAX_SDRAM_SIZE: int = 0
@@ -69,10 +70,16 @@ class LogueSDKV2Generator(Generator, ABC):
     def builtin_params(cls): return cls.BUILTIN_PARAMS
 
     @classproperty
+    def conditional_params(cls): return cls.CONDITIONAL_PARAMS
+
+    @classproperty
     def fixed_params_f(cls): return tuple(f"{n}_f" for n in cls.FIXED_PARAMS)
 
     @classproperty
-    def max_param_num(cls): return cls.MAX_PARAM_COUNT - len(cls.FIXED_PARAMS)
+    def conditional_params_f(cls): return tuple(f"{n}_f" for n in cls.CONDITIONAL_PARAMS)
+
+    @classproperty
+    def max_param_num(cls): return cls.MAX_PARAM_COUNT - len(cls.FIXED_PARAMS) - len(cls.CONDITIONAL_PARAMS)
 
     @classmethod
     def process_builtin_param(cls, param, context: dict):
@@ -156,17 +163,43 @@ class LogueSDKV2Generator(Generator, ABC):
             ]
             context['heavy_files_cpp'] = ' '.join(heavy_files_cpp)
 
-            # external parameters excluding unit parameters
-            active_fixed_params = []
+            conditional_params = []
             other_params = []
+
+            # key: table name, value: parameter names related to the table
+            soundloader = {}
+            # parameters for the size of a pcm table become built-in param
+            pcm_builtin_params = []
+            pcm_index_params = {}
+            for table in externs.tables:
+                t_name, t_tbl = table
+                if t_name.endswith('_s'):
+                    pcm_params = {
+                        'disp_name': t_name[:-2],
+                        # input params as built-in params
+                        'size_param': t_name[:-2] + "_size",
+                        'selected_param': t_name[:-2] + "_selected",
+                        'indexMenu_param': t_name[:-2] + "_indexMenu",
+                        # output params
+                        'set_param': t_name[:-2] + "_set",
+                    }
+                    pcm_builtin_params.append(pcm_params['size_param'])
+                    pcm_builtin_params.append(pcm_params['selected_param'])
+                    pcm_index_params[pcm_params['indexMenu_param']] = t_name
+                    soundloader[t_name] = pcm_params
+            context['soundloader'] = soundloader
+
+            # special external input parameters
             for param in externs.parameters.inParam:
                 p_name, p_rcv = param
                 p_attr = p_rcv.attributes
                 p_range = p_attr['max'] - p_attr['min']
                 if p_name in cls.builtin_params:
                     cls.process_builtin_param(param, context)
-                elif p_name in cls.fixed_params:
-                    active_fixed_params.append(param)
+                elif p_name in pcm_builtin_params:
+                    cls.process_builtin_param(param, context)
+                elif p_name in cls.conditional_params:
+                    conditional_params.append(param)
                     context[p_name] = {'name' : p_name}
                     context['p_'+p_name+'hash'] = p_rcv.hash
                     if p_attr['min'] == 0. and p_attr['max'] == 1.0:
@@ -194,9 +227,10 @@ class LogueSDKV2Generator(Generator, ABC):
                         context[p_name[:-2]]['max'] = 1023
                 else:
                     other_params.append(param)
-            
-            # parse parameter names
+
+            # parameter meta info for NTS-3's parameter assignment
             p_meta = {}
+            # parse parameter names
             pattern = re.compile(r'^(?:_(\d*)([xXyYzZ]?)([aAbBcCdDlLrR]?)_)?(.*)$')
             for param in other_params:
                 p_name, p_rcv = param
@@ -247,8 +281,12 @@ class LogueSDKV2Generator(Generator, ABC):
                     elif c == 'l':
                         p_curve = 'k_genericfx_curve_maxclip'
 
-                # parameter type
-                if body.endswith("_f"):
+                # parameter type as a variable type
+                if body in pcm_index_params.keys():
+                    p_disp_name = body[:-10] # "_indexMenu"
+                    p_param_type = '*pcm_index*'
+                    p_attr['type'] = '*pcm_index*'
+                elif body.endswith("_f"):
                     p_disp_name = body[:-2]
                     p_param_type = 'float'
                 else:
@@ -258,31 +296,25 @@ class LogueSDKV2Generator(Generator, ABC):
                 # show fractional part if parameter type is float
                 p_max = p_attr['max']
                 p_min = p_attr['min']
-                if cls.PLATFORM_NAME == 'drumlogue':
-                    if p_param_type == 'float':
+                if p_param_type == 'float':
+                    if cls.PLATFORM_NAME == 'drumlogue':
                         # assume using special float-to-string formatter
                         p_disp_frac = 10 # this is used for the format flag
                         p_disp_max = cls.MAX_ENCODER_STEP
                         p_disp_min = 0
                         p_disp_default = (p_attr['default'] - p_min) * cls.MAX_ENCODER_STEP / (p_max - p_min)
-                    elif p_param_type == 'int':
-                        p_disp_frac = 0
-                        p_disp_max = max(-32768, min(32767, int(p_max)))
-                        p_disp_min = max(-32768, int(p_min))
-                        p_disp_default = max(-32768, min(32767, p_attr['default']))
-                else:
-                    if p_param_type == 'float':
+                    else:
                         # assume using decimal mode for frac
                         num_digits = max(ndigits(p_max), ndigits(p_min))
                         p_disp_frac = cls.MAX_DIGITS - num_digits
                         p_disp_max = p_max * pow(10, p_disp_frac)
                         p_disp_min = p_min * pow(10, p_disp_frac)
                         p_disp_default = p_attr['default'] * pow(10, p_disp_frac)
-                    elif p_param_type == 'int':
-                        p_disp_frac = 0
-                        p_disp_max = max(-32768, min(32767, int(p_max)))
-                        p_disp_min = max(-32768, int(p_min))
-                        p_disp_default = max(-32768, min(32767, p_attr['default']))
+                else:
+                    p_disp_frac = 0
+                    p_disp_max = max(-32768, min(32767, int(p_max)))
+                    p_disp_min = max(-32768, int(p_min))
+                    p_disp_default = max(-32768, min(32767, p_attr['default']))
 
                 p_meta[p_name] = {
                     'index' : p_index,
@@ -296,6 +328,8 @@ class LogueSDKV2Generator(Generator, ABC):
                     'disp_min' : p_disp_min,
                     'disp_default' : p_disp_default,
                 }
+                if body in pcm_index_params.keys():
+                    p_meta[p_name]['table'] = pcm_index_params[body]
 
             # unit parameters (ordered)
             unit_params = [None] * cls.max_param_num
@@ -333,6 +367,7 @@ class LogueSDKV2Generator(Generator, ABC):
                 p_key = f'param_id{i+1}'
                 p_name, p_rcv = unit_params[i]
                 p_attr = p_rcv.attributes
+
                 context['param'][p_key] = {'name' : p_name}
                 context['param'][p_key]['hash'] = p_rcv.hash
                 context['param'][p_key]['max'] = p_attr['max']
@@ -340,41 +375,60 @@ class LogueSDKV2Generator(Generator, ABC):
                 context['param'][p_key]['default'] = p_attr['default']
                 if 'type' in p_attr:
                     type = p_attr['type'].lower()
-                    # types below add a unit string after values
-                    if type == 'percent':
-                        format = 'k_unit_param_type_percent'
-                    elif type == 'db':
-                        format = 'k_unit_param_type_db'
-                    elif type == 'cents':
-                        format = 'k_unit_param_type_cents'
-                    elif type == 'hertz':
-                        format = 'k_unit_param_type_hertz'
-                    elif type == 'khertz':
-                        format = 'k_unit_param_type_khertz'
-                    elif type == 'ms':
-                        format = 'k_unit_param_type_msec'
-                    elif type == 'sec':
-                        format = 'k_unit_param_type_sec'
-                    # types below add "+/-" before values
-                    elif type == 'semi':
-                        format = 'k_unit_param_type_semi'
-                    elif type == 'oct':
-                        format = 'k_unit_param_type_oct'
-                    # other types with their own formats
-                    elif type == 'drywet':
-                        format = 'k_unit_param_type_drywet'
-                    elif type == 'pan':
-                        format = 'k_unit_param_type_pan'
-                    elif type == 'spread':
-                        format = 'k_unit_param_type_spread'
-                    elif type == 'onoff':
-                        format = 'k_unit_param_type_onoff'
-                    else:
-                        format = 'k_unit_param_type_none'
+                elif 'type' in p_meta:
+                    type = p_meta['type'].lower()
+                else:
+                    type = ""
+                # types below add a unit string after values
+                if type == 'percent':
+                    format = 'k_unit_param_type_percent'
+                elif type == 'db':
+                    format = 'k_unit_param_type_db'
+                elif type == 'cents':
+                    format = 'k_unit_param_type_cents'
+                elif type == 'hertz':
+                    format = 'k_unit_param_type_hertz'
+                elif type == 'khertz':
+                    format = 'k_unit_param_type_khertz'
+                elif type == 'ms':
+                    format = 'k_unit_param_type_msec'
+                elif type == 'sec':
+                    format = 'k_unit_param_type_sec'
+                # types below add "+/-" before values
+                elif type == 'semi':
+                    format = 'k_unit_param_type_semi'
+                elif type == 'oct':
+                    format = 'k_unit_param_type_oct'
+                # other types with their own formats
+                elif type == 'drywet':
+                    format = 'k_unit_param_type_drywet'
+                elif type == 'pan':
+                    format = 'k_unit_param_type_pan'
+                elif type == 'spread':
+                    format = 'k_unit_param_type_spread'
+                elif type == 'onoff':
+                    format = 'k_unit_param_type_onoff'
+                elif type == '*platform*':
+                    format = 'k_unit_param_type_strings'
                 else:
                     format = 'k_unit_param_type_none'
+
                 context['param'][p_key]['format'] = format
+
                 context['param'][p_key].update(p_meta[p_name])
+
+            # outParams
+            context['out_param'] = {}
+            for param in externs.parameters.outParam:
+                p_name, p_rcv = param
+                p_attr = p_rcv.attributes
+                context['out_param'][p_name] = {
+                    'hash': p_rcv.hash,
+                    'max': p_attr['max'],
+                    'min': p_attr['min'],
+                    'default': p_attr['default'],
+                    'type': p_attr['type']
+                    }
 
             # find the total number of parameters
             for i in range(cls.max_param_num - 1, -1, -1):
@@ -384,16 +438,19 @@ class LogueSDKV2Generator(Generator, ABC):
             else:
                 num_param = 0
             context['num_param'] = num_param
-            context['num_active_fixed_param'] = len(active_fixed_params)
+            context['num_conditional_param'] = len(conditional_params)
 
             # store tables into a dcitionary (context)
             context['table'] = {}
             for table in externs.tables:
                 t_name, t_tbl = table
-                context['table'][t_name] = {'name' : t_name}
+                t_disp_name = t_name[:-2]
+                context['table'][t_name] = {'name' : t_name, 'disp_name' : t_disp_name}
                 context['table'][t_name]['hash'] = t_tbl.hash
                 if t_name.endswith('_r'):
                     context['table'][t_name]['type'] = 'random'
+                elif t_name.endswith('_s'):
+                    context['table'][t_name]['type'] = 'sample'
                 else:
                     context['table'][t_name]['type'] = 'none'
 
@@ -406,7 +463,7 @@ class LogueSDKV2Generator(Generator, ABC):
                 print(f"midi: {externs.midi}")
                 print(f"tables: {externs.tables}")
                 print(f"context: {json.dumps(context, indent=2, ensure_ascii=False)}")
-            
+
             # estimate required heap memory
             if cls.PLATFORM_NAME != 'drumlogue':
                 render_from_template('Makefile.testmem',
