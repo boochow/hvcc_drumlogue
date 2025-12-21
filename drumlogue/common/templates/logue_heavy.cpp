@@ -20,65 +20,112 @@
 #ifndef HV_OUTPUTQSIZE
  #define HV_OUTPUTQSIZE {{output_queue_size_kb}}
 #endif
+{% if unit_type == "synth" %}
 
+#define HV_HASH_NOTEIN          0x67E37CA3
+#define HV_HASH_BENDIN          0x3083F0F7
+#define HV_HASH_TOUCHIN         0x553925BD
+#define HV_HASH_POLYTOUCHIN     0xBC530F59
+
+{% endif %}
 static bool stop_unit_param;
 static HeavyContextInterface* hvContext;
 
 typedef enum {
+    // if platform name in [loguesdkv1, nts1mkii, nts3kaoss]
     {% if pitch is defined or pitch_note is defined %}
     k_user_unit_param_pitch,
+    {% endif %}
+    // endif
+    {% if unit_type == "synth" %}
+    k_user_unit_param_note,
     {% endif %}
     {% if slfo is defined %}
     k_user_unit_param_lfo,
     {% endif %}
-    k_user_unit_param_id1,
-    k_user_unit_param_id2,
-    k_user_unit_param_id3,
-    k_user_unit_param_id4,
-    k_user_unit_param_id5,
-    k_user_unit_param_id6,
-    k_user_unit_param_id7,
-    k_user_unit_param_id8,
-    k_user_unit_param_id9,
-    k_user_unit_param_id10,
-    k_user_unit_param_id11,
-    k_user_unit_param_id12,
-    k_user_unit_param_id13,
-    k_user_unit_param_id14,
-    k_user_unit_param_id15,
-    k_user_unit_param_id16,
-    k_user_unit_param_id17,
-    k_user_unit_param_id18,
-    k_user_unit_param_id19,
-    k_user_unit_param_id20,
-    k_user_unit_param_id21,
-    k_user_unit_param_id22,
-    k_user_unit_param_id23,
-    k_user_unit_param_id24,
+    {% for i in range(1, 25 - num_fixed_param) %}
+    {% set id = "param_id" ~ i %}
+    k_user_unit_{{id}},
+    {% endfor %}
     k_num_user_unit_param_id
 } user_unit_param_id_t;
 
 static unit_runtime_desc_t s_desc;
 static int32_t params[k_num_user_unit_param_id];
-
 {% if slfo is defined %}
 #define LFO_DEFAULTFREQ 0
 static dsp::SimpleLFO s_lfo;
 static const float s_fs_recip = 1.f / 48000.f;                                 
 {% endif %}
-
 {% if noteon_trig is defined %}
 static bool noteon_trig_dirty;
 {% endif %}
 {% if noteoff_trig is defined %}
 static bool noteoff_trig_dirty;
 {% endif %}
-
 {% if sys_tempo is defined %}
 static uint32_t sys_tempo;
 static bool sys_tempo_dirty;
 {% endif %}
+{% if unit_type == "synth" %}
+#ifndef DEFAULT_MIDI_CH
+#define DEFAULT_MIDI_CH (0.)
+#endif
 
+typedef struct note_event {
+    uint8_t note;
+    uint8_t velocity;
+} note_event_t;
+
+#define FIFO_SIZE 128
+
+typedef struct note_event_queue {
+    note_event_t events[FIFO_SIZE];
+    uint16_t head;
+    uint16_t tail;
+    uint16_t count;
+} note_event_queue_t;
+
+static note_event_queue_t note_event_q;
+
+static inline void note_event_queue_init(note_event_queue_t *q) {
+    q->head = 0;
+    q->tail = 0;
+    q->count = 0;
+}
+
+static inline bool note_event_enqueue(note_event_queue_t *q, uint8_t n, uint8_t v) {
+    if (q->count >= FIFO_SIZE) {
+        return false;
+    }
+    q->events[q->head].note = n;
+    q->events[q->head].velocity = v;
+    q->head++;
+    if (q->head >= FIFO_SIZE) {
+        q->head = 0;
+    }
+    q->count++;
+    return true;
+}
+
+static inline bool note_event_dequeue(note_event_queue_t *q, note_event_t *out) {
+    if (q->count == 0) {
+        return false;
+    }
+    *out = q->events[q->tail];
+    q->tail++;
+    if (q->tail >= FIFO_SIZE) {
+        q->tail = 0;
+    }
+    q->count--;
+    return true;
+}
+
+static uint16_t bendin;
+static bool bendin_dirty = false;
+static uint8_t touchin;
+static bool touchin_dirty = false;
+{% endif %}
 {% for i in range(1, 25) %}
     {% set id = "param_id" ~ i %}
     {% if param[id] is defined %}
@@ -147,6 +194,10 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
     {% endfor %}
 
     s_desc = *desc;
+    {% if unit_type == "synth" %}
+    note_event_queue_init(&note_event_q);
+    hv_setSendHook(hvContext, sendHook);
+    {% endif %}
 
     return k_unit_err_none;
 }
@@ -211,6 +262,22 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
             break;
         default:
             break;
+        }
+    }
+    {% endif %}
+    {% if unit_type == "synth" %}
+    note_event_t e;
+    while(note_event_dequeue(&note_event_q, &e)) {
+        hv_sendMessageToReceiverV(hvContext, HV_HASH_NOTEIN, 0, "fff", (float) e.note, (float) e.velocity, DEFAULT_MIDI_CH);
+    }
+    if (bendin_dirty) {
+        if (hv_sendMessageToReceiverV(hvContext, HV_HASH_BENDIN, 0, "ff", (float) bendin, DEFAULT_MIDI_CH)) {
+            bendin_dirty = false;
+        }
+    }
+    if (touchin_dirty) {
+        if (hv_sendMessageToReceiverV(hvContext, HV_HASH_TOUCHIN, 0, "ff", (float) touchin, DEFAULT_MIDI_CH)) {
+            touchin_dirty = false;
         }
     }
     {% endif %}
@@ -336,19 +403,19 @@ __unit_callback int32_t unit_get_param_value(uint8_t id) {
     return params[id];
 }
 
+{% if noteon_trig is defined %} 
 static void note_on()
 {
-    {% if noteon_trig is defined %} 
     noteon_trig_dirty = true;
-    {% endif %}
 }
+{% endif %}
 
+{% if noteoff_trig is defined %} 
 static void note_off()
 {
-    {% if noteoff_trig is defined %} 
     noteoff_trig_dirty = true;
-    {% endif %}
 }
+{% endif %}
 
 __unit_callback void unit_teardown() {
 }
@@ -430,3 +497,62 @@ __unit_callback void unit_set_tempo(uint32_t tempo) {
     sys_tempo_dirty = true;
     {% endif %}
 }
+
+{% if unit_type == "synth" %}
+__unit_callback void unit_note_on(uint8_t note, uint8_t velocity) {
+    {% if noteon_trig is defined %} 
+    noteon_trig_dirty = true;
+    {% endif %}
+    {% if unit_type == "synth" %}
+    note_event_enqueue(&note_event_q, note, velocity);
+    {% endif %}
+}
+
+__unit_callback void unit_note_off(uint8_t note) {
+    {% if noteoff_trig is defined %} 
+    noteoff_trig_dirty = true;
+    {% endif %}
+    {% if unit_type == "synth" %}
+    note_event_enqueue(&note_event_q, note, 0);
+    {% endif %}
+}
+
+__unit_callback void unit_gate_on(uint8_t velocity) {
+    unit_note_on(params[k_user_unit_param_note], velocity);
+}
+
+__unit_callback void unit_gate_off() {
+    unit_note_off(params[k_user_unit_param_note]);
+}
+
+__unit_callback void unit_all_note_off() {
+    for(int i = 0 ; i < 128 ; i++) {
+        unit_note_off(i);
+    }
+}
+
+__unit_callback void unit_pitch_bend(uint16_t bend) {
+    bendin = bend;
+    bendin_dirty = true;
+}
+
+__unit_callback void unit_channel_pressure(uint8_t pressure) {
+    touchin = pressure;
+    touchin_dirty = true;
+}
+
+__unit_callback void unit_aftertouch(uint8_t note, uint8_t aftertouch) {
+}
+
+__unit_callback void unit_load_preset(uint8_t idx) {
+}
+
+__unit_callback uint8_t unit_get_preset_index() {
+    return 0;
+}
+
+__unit_callback const char * unit_get_preset_name(uint8_t idx) {
+    return nullptr;
+}
+
+{% endif %}
