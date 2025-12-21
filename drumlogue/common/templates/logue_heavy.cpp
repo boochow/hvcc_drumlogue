@@ -448,8 +448,8 @@ static void format_number(char *p_str, size_t len, float f, char *format) {
     if (*p == '.') {
         p--;
     }
-    std::strcpy(formatstr, (format ? format : ""));
-    std::strcpy(++p, formatstr);
+    std::strncpy(formatstr, (format ? format : ""), 8); // allow format == null
+    std::strncpy(++p, formatstr, 8);
 }
 
 static char *formatstr(uint8_t type) {
