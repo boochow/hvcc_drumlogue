@@ -500,7 +500,7 @@ __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
         param_dirty[k_user_unit_{{id}}] = true;
         {% elif param_type == 'float' %}
         {{ param_name }} = {{ param[id]['min'] }} + value * {{ (param[id]['max'] - param[id]['min']) / param[id]['disp_max'] }};
-        param_dirty[{{i - 1}}] = true;
+        param_dirty[k_user_unit_{{id}}] = true;
         {% elif param_type == '*pcm_index*' %}
         if ({{ param_name }} != value) {
             {{ param_name }} = value;
