@@ -151,7 +151,7 @@ static uint8_t {{ tablename }}_bank;
 static bool {{ tablename }}_bank_dirty = false;
 static int32_t {{ tablename }}_index;
 static bool {{ tablename }}_index_dirty = false;
-static bool {{ tablename }}_guard;
+static bool {{ tablename }}_guard = 0;
 static bool {{ tablename }}_guard_dirty = false;
 {% endif %}
 {% endfor %}
