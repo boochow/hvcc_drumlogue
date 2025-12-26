@@ -196,6 +196,29 @@ static void sendHook(HeavyContextInterface *c, const char *sendName, unsigned in
     }
 }
 {% endif %}
+{% if platform_name == "drumlogue" %}
+#ifdef PRINTHOOK
+// This is only for debugging purposes
+#define PRINTBUFSIZE 20
+static char printBuf[PRINTBUFSIZE][32];
+static int32_t printBufIndex = 0;
+
+static void printHook(HeavyContextInterface *c, const char *printName, const char *str, const HvMessage *m) {
+    strncpy(printBuf[printBufIndex], str, 32);
+    printBufIndex = (printBufIndex + 1) % PRINTBUFSIZE;
+}
+/*
+  the printBuf[] can be used in unit_get_param_str_value().
+  use [print] object in the patch or
+  use printHook() like below to print your C variable
+  {
+      char s[32];
+      std::snprintf(s, 32, "%d", your_variable);
+      printHook(hvContext, "", s, NULL);
+  }
+ */
+#endif
+{% endif %}
 
 __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
 {
@@ -649,6 +672,18 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
     }
     {% endif %}
     {% endfor %}
+{% if platform_name == "drumlogue" %}
+#ifdef PRINTHOOK
+// edit the case number and change the variable type in the corresponding
+// parameter entry in header.c to:
+// k_unit_param_type_strings
+    case k_user_unit_param_id_for_debug: {
+        int index = (value + PRINTBUFSIZE - printBufIndex) % PRINTBUFSIZE;
+        return printBuf[index];
+        break;
+    }
+#endif
+{% endif %}
     default:
         break;
     }
