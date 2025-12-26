@@ -153,6 +153,8 @@ static int32_t {{ tablename }}_index;
 static bool {{ tablename }}_index_dirty = false;
 static bool {{ tablename }}_guard = 0;
 static bool {{ tablename }}_guard_dirty = false;
+static int32_t {{ tablename }}_chan = 1;
+static bool {{ tablename }}_chan_dirty = false;
 {% endif %}
 {% endfor %}
 {% if unit_type == "synth" %}
@@ -183,6 +185,11 @@ static void sendHook(HeavyContextInterface *c, const char *sendName, unsigned in
                     if ({{ tablename }}_guard != (value != 0)) {
                         {{ tablename }}_guard = (value != 0);
                         {{ tablename }}_guard_dirty = true;
+                    }
+                } else if (std::strcmp(symbol, "chan") == 0) {
+                    if ({{ tablename }}_chan != value) {
+                        {{ tablename }}_chan = value;
+                        {{ tablename }}_chan_dirty = true;
                     }
                 }
             }
@@ -422,48 +429,75 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
     {% set tablebank = key[:-2] ~ '_bank' %}
     {% set tableindex = key[:-2] ~ '_index' %}
     {% set tableguard = key[:-2] ~ '_guard' %}
-    if ({{ tablebank }}_dirty || {{ tableindex }}_dirty || {{ tableguard }}_dirty) {
+    {% set tablechan = key[:-2] ~ '_chan' %}
+    if ({{ tablebank }}_dirty || {{ tableindex }}_dirty || {{ tableguard }}_dirty || {{ tablechan }}_dirty) {
         const sample_wrapper_t *sample;
-        int32_t index_max;
+        const int32_t index_max = s_desc.get_num_samples_for_bank({{ tablebank }});
 
         {{ tablebank }}_dirty = false;
         {{ tableindex }}_dirty = false;
         {{ tableguard }}_dirty = false;
-        index_max = s_desc.get_num_samples_for_bank({{ tablebank }});
+        {{ tablechan }}_dirty = false;
         if ({{ tableindex }} >= index_max) {
             {{ tableindex }} = index_max;
         }
+
         sample = s_desc.get_sample({{ tablebank }}, {{ tableindex }});
         if ((sample != NULL) && (sample->frames > 0)) {
-            size_t newsize = sample->frames;
+            const size_t length = sample->frames;
+            size_t newsize = length;
             size_t offset = 0;
             if ({{ tableguard }}) {
                 newsize += 3;
                 offset = 1;
             }
+            if ({{ tablechan }} == 2) {
+                newsize *= 2;
+            }
             uint32_t table_len = hv_table_getLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
             if (table_len < newsize) {
                 hv_table_setLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}}, newsize);
                 table_{{ key }} = hv_table_getBuffer(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
+                table_len = hv_table_getLength(hvContext, HV_{{patch_name|upper}}_TABLE_{{key|upper}});
+                if (table_len < newsize) {
+                    newsize = table_len;
+                }
             }
             if (sample->channels == 1) {
-                memcpy(table_{{ key }} + offset, sample->sample_ptr, sizeof(float) * sample->frames);
+                memcpy(table_{{ key }} + offset, sample->sample_ptr, sizeof(float) * length);
+                if ({{ tablechan }} == 2) {
+                    memcpy(table_{{ key }} + newsize / 2 + offset, sample->sample_ptr, sizeof(float) * length);
+                }
             } else if (sample->channels == 2) {
                 float *p = table_{{ key }} + offset;
                 const float *l = sample->sample_ptr;
                 const float *r = sample->sample_ptr + 1;
-                for(int i = 0; i < sample->frames; i++, p++, l+=2, r+=2) {
-                    float s = (*l + *r) * 0.5;
-                    s = s > 1.f ? 1.f : (s < -1.f ? -1.f : s);
-                    *p = s;
+                if ({{ tablechan }} == 1) {
+                    for(int i = 0; i < length; i++, l+=2, r+=2) {
+                        float s = (*l + *r) * 0.5;
+                        s = s > 1.f ? 1.f : (s < -1.f ? -1.f : s);
+                        *p++ = s;
+                    }
+                } else if ({{ tablechan }} == 2) {
+                    float *q = table_{{ key }} + newsize / 2 + offset;
+                    for(int i = 0; i < length; i++, l+=2, r+=2) {
+                        *p++ = *l;
+                        *q++ = *r;
+                    }
                 }
             }
             if ({{ tableguard }}) {
-                table_{{ key }}[0] = table_{{ key }}[newsize - 3];
-                table_{{ key }}[newsize - 2] = table_{{ key }}[1];
-                table_{{ key }}[newsize - 1] = table_{{ key }}[2];
+                table_{{ key }}[0] = table_{{ key }}[length];
+                table_{{ key }}[length + 1] = table_{{ key }}[1];
+                table_{{ key }}[length + 2] = table_{{ key }}[2];
+                if ({{ tablechan }} == 2) {
+                    size_t top = length + 3;
+                    table_{{ key }}[top] = table_{{ key }}[top + length];
+                    table_{{ key }}[top + length + 1] = table_{{ key }}[top + 1];
+                    table_{{ key }}[top + length + 2] = table_{{ key }}[top + 2];
+                }
             }
-            hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_{{ soundloader[key]['size_param']|upper}}, (float) sample->frames);
+            hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_{{ soundloader[key]['size_param']|upper}}, (float) length);
         }
     }
 
@@ -645,11 +679,10 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
     {% set tablebank = tablename[:-2] ~ '_bank' %}
     case k_user_unit_{{id}}: {
         const sample_wrapper_t *sample;
-        int32_t index_max;
+        const int32_t index_max = s_desc.get_num_samples_for_bank({{ tablebank }});
         static char samplename[12];
         size_t namelen;
 
-        index_max = s_desc.get_num_samples_for_bank({{ tablebank }});
         if (value < index_max) {
             sample = s_desc.get_sample({{ tablebank }}, value);
             namelen = strlen(sample->name);
