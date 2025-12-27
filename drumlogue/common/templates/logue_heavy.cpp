@@ -618,7 +618,7 @@ __unit_callback void unit_suspend() {
 }
 
 {% if platform_name == "drumlogue" %}
-static void format_number(char *p_str, size_t len, float f, char *format) {
+static void format_number(char *p_str, size_t len, float f, const char *format) {
     char formatstr[8];
 
     std::snprintf(p_str, len, "%.3f", f);
@@ -633,7 +633,7 @@ static void format_number(char *p_str, size_t len, float f, char *format) {
     std::strncpy(++p, formatstr, 8);
 }
 
-static char *formatstr(uint8_t type) {
+static const char *formatstr(uint8_t type) {
     switch(type) {
     case k_unit_param_type_percent:
         return "%";
@@ -666,10 +666,8 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
     {% set id = "param_id" ~ i %}
     {% if param[id] is defined and param[id]['disp_frac'] > 0 %}
     case k_user_unit_{{id}}: {
-        char *s;
         fvalue = {{ param[id]['min' ]}} + value * ({{ param[id]['max'] }} - {{ param[id]['min'] }}) / {{ param[id]['disp_max'] }};
-        s = formatstr({{ param[id]['format'] }});
-        format_number(p_str, sizeof(p_str), fvalue, s);
+        format_number(p_str, sizeof(p_str), fvalue, formatstr({{ param[id]['format'] }}));
         return p_str;
         break;
     }
