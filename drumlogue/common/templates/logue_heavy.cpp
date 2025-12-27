@@ -473,14 +473,14 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
                 const float *l = sample->sample_ptr;
                 const float *r = sample->sample_ptr + 1;
                 if ({{ tablechan }} == 1) {
-                    for(int i = 0; i < length; i++, l+=2, r+=2) {
+                    for(uint32_t i = 0; i < length; i++, l+=2, r+=2) {
                         float s = (*l + *r) * 0.5;
                         s = s > 1.f ? 1.f : (s < -1.f ? -1.f : s);
                         *p++ = s;
                     }
                 } else if ({{ tablechan }} == 2) {
                     float *q = table_{{ key }} + newsize / 2 + offset;
-                    for(int i = 0; i < length; i++, l+=2, r+=2) {
+                    for(uint32_t i = 0; i < length; i++, l+=2, r+=2) {
                         *p++ = *l;
                         *q++ = *r;
                     }
