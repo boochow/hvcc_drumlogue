@@ -629,7 +629,7 @@ static void format_number(char *p_str, size_t len, float f, const char *format) 
     if (*p == '.') {
         p--;
     }
-    std::strncpy(formatstr, (format ? format : ""), 8); // allow format == null
+    std::strncpy(formatstr, (format ? format : ""), 8); // allow null format
     std::strncpy(++p, formatstr, 8);
 }
 
