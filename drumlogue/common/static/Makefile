@@ -50,10 +50,10 @@ CSRC += $(realpath $(COMMON_SRC_PATH)/_unit_base.c)
 #
 
 # C compiler warnings
-USE_CWARN ?= -W -Wall -Wextra
+USE_CWARN ?= -W -Wall -Wextra -Wno-unused-parameter
 
 # C++ compiler warnings
-USE_CXXWARN ?= -W -Wall -Wextra -Wno-ignored-qualifiers
+USE_CXXWARN ?= -W -Wall -Wextra -Wno-ignored-qualifiers -Wno-unused-parameter
 
 # Generic compiler options
 ifeq ($(USE_OPT),)
