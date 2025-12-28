@@ -44,7 +44,7 @@ const __unit_header drumlogue_unit_header_t unit_header = {
         {% endif %}
         {% set id = "param_id" ~ i %}
         {% if param[id] is defined %}
-            {% if param[id]['disp_frac'] > 9 or param[id]['type'] == '*pcm_index*' %}
+            {% if param[id]['disp_frac'] > 9 or param[id]['type'] == '*pcm_index*' or param[id]['type'] == '*pcm_bank*' %}
         {{'{' ~ param[id]['disp_min'] | int}}, {{param[id]['disp_max'] | int}}, {{param[id]['disp_default'] | int}}, {{param[id]['disp_default'] | int}}, k_unit_param_type_strings, {{[param[id]['disp_frac'], 0] | max}}, 1, 0, {{ '{"' ~ param[id]['disp_name'] ~ '"}}' }}{% if not loop.last %},{{"\n"}}{% endif %}
             {% else %}
         {{'{' ~ param[id]['disp_min'] | int}}, {{param[id]['disp_max'] | int}}, {{param[id]['disp_default'] | int}}, {{param[id]['disp_default'] | int}}, {{param[id]['format'] }}, 0, 0, 0, {{ '{"' ~ param[id]['disp_name'] ~ '"}}' }}{% if not loop.last %},{{"\n"}}{% endif %}

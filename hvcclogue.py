@@ -171,6 +171,7 @@ class LogueSDKV2Generator(Generator, ABC):
             # parameters for the size of a pcm table become built-in param
             pcm_builtin_params = []
             pcm_index_params = {}
+            pcm_bank_params = {}
             for table in externs.tables:
                 t_name, t_tbl = table
                 if t_name.endswith('_s'):
@@ -180,12 +181,14 @@ class LogueSDKV2Generator(Generator, ABC):
                         'size_param': t_name[:-2] + "_size",
                         'selected_param': t_name[:-2] + "_selected",
                         'indexMenu_param': t_name[:-2] + "_indexMenu",
+                        'bankMenu_param': t_name[:-2] + "_bankMenu",
                         # output params
                         'set_param': t_name[:-2] + "_set",
                     }
                     pcm_builtin_params.append(pcm_params['size_param'])
                     pcm_builtin_params.append(pcm_params['selected_param'])
                     pcm_index_params[pcm_params['indexMenu_param']] = t_name
+                    pcm_bank_params[pcm_params['bankMenu_param']] = t_name
                     soundloader[t_name] = pcm_params
             context['soundloader'] = soundloader
 
@@ -286,6 +289,10 @@ class LogueSDKV2Generator(Generator, ABC):
                     p_disp_name = body[:-10] # "_indexMenu"
                     p_param_type = '*pcm_index*'
                     p_attr['type'] = '*pcm_index*'
+                elif body in pcm_bank_params.keys():
+                    p_disp_name = "Bk:" + body[:-9][:4] # "_bankMenu"
+                    p_param_type = '*pcm_bank*'
+                    p_attr['type'] = '*pcm_bank*'
                 elif body.endswith("_f"):
                     p_disp_name = body[:-2]
                     p_param_type = 'float'
@@ -330,6 +337,8 @@ class LogueSDKV2Generator(Generator, ABC):
                 }
                 if body in pcm_index_params.keys():
                     p_meta[p_name]['table'] = pcm_index_params[body]
+                elif body in pcm_bank_params.keys():
+                    p_meta[p_name]['table'] = pcm_bank_params[body]
 
             # unit parameters (ordered)
             unit_params = [None] * cls.max_param_num

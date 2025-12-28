@@ -137,6 +137,8 @@ static int32_t {{param[id]['name']}};
 static float {{param[id]['name']}};
         {% elif param[id]['type'] == '*pcm_index*' %}
 static int32_t {{param[id]['name']}};
+        {% elif param[id]['type'] == '*pcm_bank*' %}
+static int32_t {{param[id]['name']}};
         {% endif %}
     {% endif %}
 {% endfor %}
@@ -247,6 +249,9 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
     {{param[id]['name']}} = {{param[id]['default'] | int}};
     params[k_user_unit_{{id}}] = {{param[id]['name']}};
         {% elif param[id]['type'] == '*pcm_index*' %}
+    {{param[id]['name']}} = {{param[id]['default'] | int}};
+    params[k_user_unit_{{id}}] = {{param[id]['name']}};
+        {% elif param[id]['type'] == '*pcm_bank*' %}
     {{param[id]['name']}} = {{param[id]['default'] | int}};
     params[k_user_unit_{{id}}] = {{param[id]['name']}};
         {% endif %}
@@ -573,7 +578,7 @@ __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
         {% elif param_type == 'float' %}
         {{ param_name }} = {{ param[id]['min'] }} + value * {{ (param[id]['max'] - param[id]['min']) / param[id]['disp_max'] }};
         param_dirty[k_user_unit_{{id}}] = true;
-        {% elif param_type == '*pcm_index*' %}
+        {% elif param_type == '*pcm_index*' or  param_type == '*pcm_bank*' %}
         if ({{ param_name }} != value) {
             {{ param_name }} = value;
             param_dirty[k_user_unit_{{id}}] = true;
@@ -660,6 +665,7 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
     static char p_str[16];
     float fvalue;
     static char empty_str[10] = "000:---";
+    static const char bankNames[7][6] = {"CH","OH","RS","CP","MISC","USER","EXP"};
 
     switch(id) {
     {% for i in range(1, 25) %}
@@ -671,6 +677,15 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
         return p_str;
         break;
     }
+    {% endif %}
+    {% if param[id] is defined and param[id]['type'] == '*pcm_bank*' %}
+    case k_user_unit_{{id}}:
+        if (value < 7) {
+            return bankNames[value];
+        } else {
+            return nullptr;
+        }
+        break;
     {% endif %}
     {% if param[id] is defined and param[id]['type'] == '*pcm_index*' %}
     {% set tablename = param[id]['table'] %}
