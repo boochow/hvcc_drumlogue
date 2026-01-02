@@ -31,7 +31,10 @@ def set_min_value(dic, key, value):
 def render_from_template(template_file, rendered_file, context):
     common_templates_dir = os.path.join(os.path.dirname(__file__), context['platform_name'], "common", "templates")
     unit_templates_dir = os.path.join(os.path.dirname(__file__), context['platform_name'], context['unit_type'], "templates")
-    templates_dir = [unit_templates_dir, common_templates_dir]
+    templates_dir = [
+        d for d in (unit_templates_dir, common_templates_dir)
+        if os.path.isdir(d)
+    ]
     loader = jinja2.FileSystemLoader(templates_dir)
     env = jinja2.Environment(loader=loader, trim_blocks=True, lstrip_blocks=True)
     rendered = env.get_template(template_file).render(**context)
