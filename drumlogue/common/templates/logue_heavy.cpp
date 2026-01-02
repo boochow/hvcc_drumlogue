@@ -279,7 +279,7 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
     if (desc->output_channels < {{num_output_channels}})
       return k_unit_err_geometry;
     {% else %}
-    if (desc->input_channels != 2 || desc->output_channels < {{num_output_channels}})
+    if (desc->input_channels != {{num_input_channels}} || desc->output_channels < {{num_output_channels}})
       return k_unit_err_geometry;
     {% endif %}
 

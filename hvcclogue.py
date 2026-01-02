@@ -146,6 +146,7 @@ class LogueSDKV2Generator(Generator, ABC):
                 'msg_pool_size_kb': cls.MSG_POOL_SIZE_KB,
                 'input_queue_size_kb': cls.INPUT_QUEUE_SIZE_KB,
                 'output_queue_size_kb': cls.OUTPUT_QUEUE_SIZE_KB,
+                'num_input_channels' : num_input_channels,
                 'num_output_channels' : num_output_channels,
                 'num_fixed_param': len(cls.fixed_params)
             }
