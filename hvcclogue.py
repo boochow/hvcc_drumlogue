@@ -125,10 +125,11 @@ class LogueSDKV2Generator(Generator, ABC):
             unit_static_dir = os.path.join(os.path.dirname(__file__), cls.PLATFORM_NAME, cls.unit_type(), "static")
             os.makedirs(out_dir, exist_ok=False)
             for static_dir in [common_static_dir, unit_static_dir]:
-                for filename in os.listdir(static_dir):
-                    src_path = os.path.join(static_dir, filename)
-                    dst_path = os.path.join(out_dir, filename)
-                    shutil.copy2(src_path, dst_path)
+                if os.path.isdir(static_dir):
+                    for filename in os.listdir(static_dir):
+                        src_path = os.path.join(static_dir, filename)
+                        dst_path = os.path.join(out_dir, filename)
+                        shutil.copy2(src_path, dst_path)
 
             # copy C files
             for file in os.listdir(c_src_dir):
