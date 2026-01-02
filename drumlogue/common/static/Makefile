@@ -209,13 +209,14 @@ CXXSTD ?= -std=gnu++14
 CXXOPT += $(CXXSTD)
 
 # Output directory and files
+PRODUCT := $(PROJECT).drmlgunit
 BUILDDIR ?= build
 
 ifeq ($(BUILDDIR),.)
   BUILDDIR = build
 endif
 
-OUTFILES := $(BUILDDIR)/$(PROJECT).drmlgunit \
+OUTFILES := $(BUILDDIR)/$(PROJECT).elf \
             $(BUILDDIR)/$(PROJECT).hex \
             $(BUILDDIR)/$(PROJECT).bin \
             $(BUILDDIR)/$(PROJECT).dmp \
@@ -361,24 +362,17 @@ else
 	@$(CC) -c $(ASXFLAGS) -I. $(IINCDIR) $< -o $@
 endif
 
-$(BUILDDIR)/$(PROJECT).drmlgunit: $(OBJS) #$(LDSCRIPT)
+$(BUILDDIR)/%.elf: $(OBJS) #$(LDSCRIPT)
 ifeq ($(VERBOSE_COMPILE),yes)
 	@echo
 	$(LD) $(OBJS) $(LDFLAGS) $(LIBS) -o $@
-ifeq ($(DEBUG),)
-	$(STRIP) $@
-endif
 else
 	@echo
 	@echo Linking $@
 	@$(LD) $(OBJS) $(LDFLAGS) $(LIBS) -o $@
-ifeq ($(DEBUG),)
-	@echo Stripping $@
-	@$(STRIP) $@
-endif
 endif
 
-%.hex: %.drmlgunit
+%.hex: %.elf
 ifeq ($(VERBOSE_COMPILE),yes)
 	$(HEX) $< $@
 else
@@ -386,7 +380,7 @@ else
 	@$(HEX) $< $@
 endif
 
-%.bin: %.drmlgunit
+%.bin: %.elf
 ifeq ($(VERBOSE_COMPILE),yes)
 	$(BIN) $< $@
 else
@@ -394,7 +388,7 @@ else
 	@$(BIN) $< $@
 endif
 
-%.srec: %.drmlgunit
+%.srec: %.elf
 ifdef SREC
   ifeq ($(VERBOSE_COMPILE),yes)
 	$(SREC) $< $@
@@ -404,7 +398,7 @@ ifdef SREC
   endif
 endif
 
-%.dmp: %.drmlgunit
+%.dmp: %.elf
 ifeq ($(VERBOSE_COMPILE),yes)
 	$(OD) $(ODFLAGS) $< > $@
 	$(SZ) $<
@@ -415,7 +409,7 @@ else
 	@$(SZ) $<
 endif
 
-%.list: %.drmlgunit
+%.list: %.elf
 ifeq ($(VERBOSE_COMPILE),yes)
 	$(OD) -S $< > $@
 else
@@ -426,9 +420,14 @@ else
 	@echo
 endif
 
-install: | $(OBJS) $(OUTFILES)
-	@echo Deploying to $(INSTALLDIR)/$(PROJECT).drmlgunit
-	@mv $(BUILDDIR)/$(PROJECT).drmlgunit $(INSTALLDIR)/
+$(BUILDDIR)/$(PRODUCT): | $(OBJS) $(OUTFILES)
+	@echo Making $(BUILDDIR)/$(PRODUCT)
+	@cp -a $(BUILDDIR)/$(PROJECT).elf $(BUILDDIR)/$(PRODUCT)
+	@$(STRIP) $(BUILDDIR)/$(PRODUCT)
+
+install: | $(BUILDDIR)/$(PRODUCT)
+	@echo Deploying to $(INSTALLDIR)/$(PRODUCT)
+	@mv $(BUILDDIR)/$(PRODUCT) $(INSTALLDIR)/
 	@echo
 	@echo Done
 	@echo
