@@ -158,6 +158,7 @@ static bool {{ tablename }}_guard_dirty = false;
 static int32_t {{ tablename }}_chan = 1;
 static bool {{ tablename }}_chan_dirty = false;
 #define {{ soundloader[key]['size_param']|upper }} {{ soundloader[key]['size_param_hash'] }}
+#define {{ soundloader[key]['set_param']|upper }} {{ soundloader[key]['set_param_hash'] }}
 {% endif %}
 {% endfor %}
 {% if unit_type == "synth" %}
@@ -167,9 +168,7 @@ static void sendHook(HeavyContextInterface *c, const char *sendName, unsigned in
     {% for key, entry in table.items() %}
     {% if entry.type == "sample" %}
     {% set tablename = key[:-2] %}
-    {% set param = soundloader[key]['set_param'] %}
-    {% if out_param[param] is defined %}
-    case HV_{{ patch_name|upper }}_PARAM_OUT_{{ param |upper}}:
+    case {{ soundloader[key]['set_param']|upper }}:
         if (hv_msg_getNumElements(m) == 2) {
             if (hv_msg_isSymbol(m, 0) && hv_msg_isFloat(m, 1)) {
                 const char *symbol = hv_msg_getSymbol(m, 0);
@@ -198,7 +197,6 @@ static void sendHook(HeavyContextInterface *c, const char *sendName, unsigned in
             }
         }
         break;
-    {% endif %}
     {% endif %}
     {% endfor %}
     default:

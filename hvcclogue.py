@@ -191,6 +191,7 @@ class LogueSDKV2Generator(Generator, ABC):
                         'size_param_hash': "0x{0:X}".format(HeavyLangObject.get_hash(t_name[:-2] + "_size")),
                         # output params
                         'set_param': t_name[:-2] + "_set",
+                        'set_param_hash': "0x{0:X}".format(HeavyLangObject.get_hash(t_name[:-2] + "_set")),
                     }
                     pcm_builtin_params.append(pcm_params['size_param'])
                     pcm_builtin_params.append(pcm_params['selected_param'])
