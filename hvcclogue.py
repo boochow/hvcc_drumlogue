@@ -12,6 +12,7 @@ from typing import Dict, Optional, Tuple
 from hvcc.types.compiler import CompilerResp, ExternInfo, Generator, CompilerNotif, CompilerMsg
 from hvcc.interpreters.pd2hv.NotificationEnum import NotificationEnum
 from hvcc.types.meta import Meta
+from hvcc.core.hv2ir.HeavyLangObject import HeavyLangObject
 
 def ndigits(x):
     return round(math.log10(abs(x)) + 0.5) if abs(x) > 1 else 1
@@ -187,6 +188,7 @@ class LogueSDKV2Generator(Generator, ABC):
                         'selected_param': t_name[:-2] + "_selected",
                         'indexMenu_param': t_name[:-2] + "_indexMenu",
                         'bankMenu_param': t_name[:-2] + "_bankMenu",
+                        'size_param_hash': "0x{0:X}".format(HeavyLangObject.get_hash(t_name[:-2] + "_size")),
                         # output params
                         'set_param': t_name[:-2] + "_set",
                     }

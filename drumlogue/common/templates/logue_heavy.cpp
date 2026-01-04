@@ -157,6 +157,7 @@ static bool {{ tablename }}_guard = 0;
 static bool {{ tablename }}_guard_dirty = false;
 static int32_t {{ tablename }}_chan = 1;
 static bool {{ tablename }}_chan_dirty = false;
+#define {{ soundloader[key]['size_param']|upper }} {{ soundloader[key]['size_param_hash'] }}
 {% endif %}
 {% endfor %}
 {% if unit_type == "synth" %}
@@ -502,7 +503,7 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
                     table_{{ key }}[top + length + 2] = table_{{ key }}[top + 2];
                 }
             }
-            hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_{{ soundloader[key]['size_param']|upper}}, (float) length);
+            hv_sendFloatToReceiver(hvContext, {{ soundloader[key]['size_param']|upper }}, (float) length);
         }
     }
 
