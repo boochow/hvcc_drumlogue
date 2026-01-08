@@ -30,7 +30,6 @@
 #define HV_HASH_POLYTOUCHIN     0xBC530F59
 
 {% endif %}
-static bool stop_unit_param;
 static HeavyContextInterface* hvContext;
 
 typedef enum {
@@ -230,7 +229,6 @@ static void printHook(HeavyContextInterface *c, const char *printName, const cha
 
 __unit_callback int8_t unit_init(const unit_runtime_desc_t * desc)
 {
-    stop_unit_param = true;
     {% if slfo is defined %}
     s_lfo.reset();
     s_lfo.setF0(LFO_DEFAULTFREQ, s_fs_recip);
@@ -310,8 +308,6 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
     float * __restrict y = out;
     const float * y_e = y + {{num_output_channels}} * frames;
 #endif
-
-    stop_unit_param = false;
 
     {% if pitch is defined %} 
     const float pitch = osc_w0f_for_note(params[k_user_unit_param_pitch]>>3, (params[k_user_unit_param_pitch] & 0x7)<<5) * k_samplerate;
@@ -560,9 +556,6 @@ __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
     float knob_f = param_val_to_f32(value);
     {% endif %}
 
-    if (stop_unit_param) {
-        return; // avoid all parameters to be zero'ed after unit_init()
-    }
     params[id] = value;
     switch(id){
     {% for i in range(1, 25) %}
@@ -663,8 +656,10 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
 ) {
     static char p_str[16];
     float fvalue;
+    {% if soundloader %}
     static char empty_str[10] = "000:---";
     static const char bankNames[7][6] = {"CH","OH","RS","CP","MISC","USER","EXP"};
+    {% endif %}
 
     switch(id) {
     {% for i in range(1, 25) %}
