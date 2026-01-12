@@ -425,6 +425,8 @@ class LogueSDKV2Generator(Generator, ABC):
                     format = 'k_unit_param_type_spread'
                 elif type == 'onoff':
                     format = 'k_unit_param_type_onoff'
+                elif type == 'midinote':
+                    format = 'k_unit_param_type_midi_note'
                 elif type == '*platform*':
                     format = 'k_unit_param_type_strings'
                 else:
