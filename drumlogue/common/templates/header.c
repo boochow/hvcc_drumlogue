@@ -23,7 +23,7 @@ const __unit_header drumlogue_unit_header_t unit_header = {
     .dev_id = PROJECT_DEV_ID,
     .unit_id = PROJECT_UNIT_ID,
     .version = 0x00010000U,
-    .name = "{{patch_name}}",
+    .name = "{{patch_name[:13]}}",
     {% if platform_name == "drumlogue" and unit_type == "synth" %}
     .num_presets = 0,
     {% endif %}
