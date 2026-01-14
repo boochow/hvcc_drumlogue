@@ -359,7 +359,8 @@ class LogueSDKV2Generator(Generator, ABC):
                     if not (0 <= index < cls.max_param_num):
                         raise IndexError(f"Index {index} is out of range.")
                     if unit_params[index] is not None:
-                        print(f'Warning: parameter {index} is duplicated ({unit_params[order]}, {p_name})')
+                        print(f'Warning: parameter slot {index + 1} is duplicated ({unit_params[index][0]}, {p_name})')
+                        p_meta[p_name]['index'] = None
                     else:
                         unit_params[index] = param
 
