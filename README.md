@@ -155,13 +155,13 @@ Sample audio data on drumlogue can be copied to a table whose name ends with `_s
 
 When a table for sample data is declared, corresponding symbols and parameters below become available.
 
-| symbol                | type  | send/receive | value                 |
-| --------------------- | ----- | ------------ | --------------------- |
-| `tableName_s`         | table | -            | sample audio data     |
-| `tableName_set`       | `s f` | `s`          | specify meta data     |
-| `tableName_size`      | `f`   | `r`          | sample length         |
-| `tableName_bankMenu`  | `f`   | `r`          | selected bank number  |
-| `tableName_indexMenu` | `f`   | `r`          | selected index number |
+| symbol                | type               | format       | send/receive | value                 |
+| --------------------- | ------------------ | ------------ | ------------ | --------------------- |
+| `tableName_s`         | table              | array of `f` | -            | sample audio data     |
+| `tableName_set`       | output parameter   | `s f`        | `s`          | specify meta data     |
+| `tableName_size`      | built-in parameter | `f`          | `r`          | sample length         |
+| `tableName_bankMenu`  | input parameter    | `f`          | `r`          | selected bank number  |
+| `tableName_indexMenu` | input parameter    | `f`          | `r`          | selected index number |
 
 You can specify the sample data to be copied and its format by sending messages to the symbol whose name ends with `_set`. The table below shows available meta data that can be used in a message.
 
