@@ -223,6 +223,19 @@ class LogueSDKV2Generator(Generator, ABC):
                         context[p_name]['min'] = p_attr['min']
                         context[p_name]['max'] = p_attr['max']
                         context[p_name]['default'] = p_attr['default']
+                elif p_name in cls.fixed_params:
+                    context[p_name] = {'name' : p_name}
+                    context['p_'+p_name+'hash'] = p_rcv.hash
+                    if p_attr['min'] == 0. and p_attr['max'] == 1.0:
+                        context[p_name]['range'] = 1023
+                        context[p_name]['min'] = 0
+                        context[p_name]['max'] = 1023
+                        context[p_name]['default'] = 512
+                    else:
+                        context[p_name]['range'] = p_range
+                        context[p_name]['min'] = p_attr['min']
+                        context[p_name]['max'] = p_attr['max']
+                        context[p_name]['default'] = p_attr['default']
                 elif p_name in cls.fixed_params_f:
                     context[p_name[:-2]] = {'name' : p_name}
                     context[p_name[:-2]]['range_f'] = p_range

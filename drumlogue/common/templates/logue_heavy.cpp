@@ -141,8 +141,8 @@ static int32_t {{param[id]['name']}};
         {% endif %}
     {% endif %}
 {% endfor %}
-{% if num_param > 0 %}
-static bool param_dirty[{{num_param}}];
+{% if (num_fixed_param + num_param) > 0 %}
+static bool param_dirty[{{num_param + num_fixed_param}}];
 {% endif %}
 {% for key, entry in table.items() %}
 static float * table_{{ key }};
@@ -375,6 +375,13 @@ __unit_callback void unit_render(const float * in, float * out, uint32_t frames)
             touchin_dirty = false;
         }
     }
+    {% if note is defined %}
+    if (param_dirty[k_user_unit_param_note]) {
+        if (hv_sendFloatToReceiver(hvContext, HV_{{patch_name|upper}}_PARAM_IN_NOTE, params[k_user_unit_param_note])) {
+            param_dirty[k_user_unit_param_note] = false;
+        }
+    }
+    {% endif %}
     {% endif %}
     {% for i in range(1, 25 - num_fixed_param) %}
     {% set id = "param_id" ~ i %}
@@ -557,6 +564,7 @@ __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
     {% endif %}
 
     params[id] = value;
+    param_dirty[id] = true;
     switch(id){
     {% for i in range(1, 25) %}
     {% set id = "param_id" ~ i %}
@@ -566,14 +574,14 @@ __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
     case k_user_unit_{{id}}:
         {% if param_type == 'int' %}
         {{ param_name }} = value;
-        param_dirty[k_user_unit_{{id}}] = true;
+//        param_dirty[k_user_unit_{{id}}] = true;
         {% elif param_type == 'float' %}
         {{ param_name }} = {{ param[id]['min'] }} + value * {{ (param[id]['max'] - param[id]['min']) / param[id]['disp_max'] }};
-        param_dirty[k_user_unit_{{id}}] = true;
+//        param_dirty[k_user_unit_{{id}}] = true;
         {% elif param_type == '*pcm_index*' or  param_type == '*pcm_bank*' %}
         if ({{ param_name }} != value) {
             {{ param_name }} = value;
-            param_dirty[k_user_unit_{{id}}] = true;
+//            param_dirty[k_user_unit_{{id}}] = true;
         }
         {% endif %}
         break;
