@@ -662,8 +662,7 @@ static const char *formatstr(uint8_t type) {
 
 __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value \
 ) {
-    static char p_str[16];
-    float fvalue;
+    static char param_str[32];
     {% if soundloader %}
     static char empty_str[10] = "000:---";
     static const char bankNames[7][6] = {"CH","OH","RS","CP","MISC","USER","EXP"};
@@ -674,9 +673,9 @@ __unit_callback const char * unit_get_param_str_value(uint8_t id, int32_t value 
     {% set id = "param_id" ~ i %}
     {% if param[id] is defined and param[id]['disp_frac'] > 0 %}
     case k_user_unit_{{id}}: {
-        fvalue = {{ param[id]['min' ]}} + value * ({{ param[id]['max'] }} - {{ param[id]['min'] }}) / {{ param[id]['disp_max'] }};
-        format_number(p_str, sizeof(p_str), fvalue, formatstr({{ param[id]['format'] }}));
-        return p_str;
+        float fvalue = {{ param[id]['min' ]}} + value * ({{ param[id]['max'] }} - {{ param[id]['min'] }}) / {{ param[id]['disp_max'] }};
+        format_number(param_str, sizeof(param_str), fvalue, formatstr({{ param[id]['format'] }}));
+        return param_str;
         break;
     }
     {% endif %}
