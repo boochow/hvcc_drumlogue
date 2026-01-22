@@ -331,6 +331,7 @@ class LogueSDKV2Generator(Generator, ABC):
                         p_disp_max = cls.MAX_ENCODER_STEP
                         p_disp_min = 0
                         p_disp_default = (p_attr['default'] - p_min) * cls.MAX_ENCODER_STEP / (p_max - p_min)
+                        p_disp_default = int(math.copysign(math.ceil(abs(p_disp_default)), p_disp_default))
                     else:
                         # assume using decimal mode for frac
                         num_digits = max(ndigits(p_max), ndigits(p_min))
