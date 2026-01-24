@@ -47,7 +47,7 @@ A separate repository containing sample patches for this project is available at
 ## Restrictions
 
 - The logue SDK oscillator units support only a 48,000 Hz sampling rate. 
-- The number of channels of `[dac~]` object must be 2 for all types of units. 
+- The number of channels of `[dac~]` object must be 1 or 2 for all types of units. 
 - The number of channels of `[adc~]` must be 4 for `masterfx` units, and 2 for other types of units.
 
 ## Parameters
